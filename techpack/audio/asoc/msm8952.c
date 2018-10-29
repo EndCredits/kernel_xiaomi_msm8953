@@ -74,7 +74,7 @@ static int msm8952_mclk_event(struct snd_soc_dapm_widget *w,
 static int msm8952_wsa_switch_event(struct snd_soc_dapm_widget *w,
 			      struct snd_kcontrol *kcontrol, int event);
 
-#ifdef CONFIG_MACH_XIAOMI_TISSOT
+#if (defined CONFIG_MACH_XIAOMI_TIFFANY) || (defined CONFIG_MACH_XIAOMI_TISSOT)
 int ext_pa_gpio = 0;
 int ext_pa_status = 0;
 #endif
@@ -87,7 +87,7 @@ int ext_pa_status = 0;
 static struct wcd_mbhc_config mbhc_cfg = {
 	.read_fw_bin = false,
 	.calibration = NULL,
-#ifdef CONFIG_MACH_XIAOMI_TISSOT
+#if (defined CONFIG_MACH_XIAOMI_TIFFANY) || (defined CONFIG_MACH_XIAOMI_TISSOT)
 	.detect_extn_cable = false,
 #else
 	.detect_extn_cable = true,
@@ -96,7 +96,7 @@ static struct wcd_mbhc_config mbhc_cfg = {
 	.swap_gnd_mic = NULL,
 	.hs_ext_micbias = false,
 	.key_code[0] = KEY_MEDIA,
-#if (defined CONFIG_MACH_XIAOMI_MIDO) || (defined CONFIG_MACH_XIAOMI_TISSOT)
+#if (defined CONFIG_MACH_XIAOMI_MIDO) || (defined CONFIG_MACH_XIAOMI_TIFFANY) || (defined CONFIG_MACH_XIAOMI_TISSOT)
 	.key_code[1] = BTN_1,
 	.key_code[2] = BTN_2,
 	.key_code[3] = 0,
@@ -341,7 +341,7 @@ int is_ext_spk_gpio_support(struct platform_device *pdev,
 				__func__, pdata->spk_ext_pa_gpio);
 			return -EINVAL;
 		}
-#ifdef CONFIG_MACH_XIAOMI_TISSOT
+#if (defined CONFIG_MACH_XIAOMI_TIFFANY) || (defined CONFIG_MACH_XIAOMI_TISSOT)
 		ext_pa_gpio = pdata->spk_ext_pa_gpio;
 #endif
 	}
@@ -355,7 +355,7 @@ static int enable_spk_ext_pa(struct snd_soc_codec *codec, int enable)
 {
 	struct snd_soc_card *card = codec->component.card;
 	struct msm_asoc_mach_data *pdata = snd_soc_card_get_drvdata(card);
-#ifndef CONFIG_MACH_XIAOMI_MIDO
+#if !((defined CONFIG_MACH_XIAOMI_MIDO) || (defined CONFIG_MACH_XIAOMI_TIFFANY) || (defined CONFIG_MACH_XIAOMI_TISSOT))
 	int ret;
 #endif
 #ifdef CONFIG_MACH_XIAOMI_MIDO
@@ -368,7 +368,7 @@ static int enable_spk_ext_pa(struct snd_soc_codec *codec, int enable)
 		return false;
 	}
 
-#ifdef CONFIG_MACH_XIAOMI_TISSOT
+#if (defined CONFIG_MACH_XIAOMI_TIFFANY) || (defined CONFIG_MACH_XIAOMI_TISSOT)
 	ext_pa_status = enable;
 #endif
 
@@ -385,6 +385,7 @@ static int enable_spk_ext_pa(struct snd_soc_codec *codec, int enable)
 			pa_mode--;
 		}
 #else
+#if (!defined CONFIG_MACH_XIAOMI_TIFFANY) || (!defined CONFIG_MACH_XIAOMI_TISSOT)
 		ret =  msm_cdc_pinctrl_select_active_state(
 					pdata->spk_ext_pa_gpio_p);
 		if (ret) {
@@ -392,11 +393,12 @@ static int enable_spk_ext_pa(struct snd_soc_codec *codec, int enable)
 					__func__, "ext_spk_gpio");
 			return ret;
 		}
+#endif
 		gpio_set_value_cansleep(pdata->spk_ext_pa_gpio, enable);
 #endif
 	} else {
 		gpio_set_value_cansleep(pdata->spk_ext_pa_gpio, enable);
-#ifndef CONFIG_MACH_XIAOMI_MIDO
+#if !((defined CONFIG_MACH_XIAOMI_MIDO) || (defined CONFIG_MACH_XIAOMI_TIFFANY) || (defined CONFIG_MACH_XIAOMI_TISSOT))
 		ret = msm_cdc_pinctrl_select_sleep_state(
 				pdata->spk_ext_pa_gpio_p);
 		if (ret) {
@@ -1559,7 +1561,7 @@ static void *def_msm8952_wcd_mbhc_cal(void)
 		return NULL;
 
 #define S(X, Y) ((WCD_MBHC_CAL_PLUG_TYPE_PTR(msm8952_wcd_cal)->X) = (Y))
-#if (defined CONFIG_MACH_XIAOMI_MIDO) || (defined CONFIG_MACH_XIAOMI_TISSOT)
+#if (defined CONFIG_MACH_XIAOMI_MIDO) || (defined CONFIG_MACH_XIAOMI_TIFFANY) || (defined CONFIG_MACH_XIAOMI_TISSOT)
 	S(v_hs_max, 1600);
 #else
 	S(v_hs_max, 1500);
@@ -1598,7 +1600,7 @@ static void *def_msm8952_wcd_mbhc_cal(void)
 	btn_low[4] = 438;
 	btn_high[4] = 438;
 #else
-#ifdef CONFIG_MACH_XIAOMI_TISSOT
+#if (defined CONFIG_MACH_XIAOMI_TIFFANY) || (defined CONFIG_MACH_XIAOMI_TISSOT)
 	btn_low[0] = 91;
 	btn_high[0] = 91;
 	btn_low[1] = 259;
