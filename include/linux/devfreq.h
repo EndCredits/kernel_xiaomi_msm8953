@@ -314,6 +314,8 @@ struct devfreq_passive_data {
 	struct notifier_block nb;
 };
 #endif
+/* Caution: devfreq->lock must be locked before calling update_devfreq */
+extern int update_devfreq(struct devfreq *devfreq);
 
 /* Caution: devfreq->lock must be locked before calling update_devfreq */
 extern int update_devfreq(struct devfreq *devfreq);
