@@ -130,6 +130,11 @@ $(obj)/config_data.gz: arch/arm64/configs/tissot_defconfig FORCE
 else
 $(obj)/config_data.gz: $(KCONFIG_CONFIG) FORCE
 endif
+ifeq ($(CONFIG_MACH_XIAOMI_TIFFANY),y)
+$(obj)/config_data.gz: arch/arm64/configs/tiffany_defconfig FORCE
+else
+$(obj)/config_data.gz: $(KCONFIG_CONFIG) FORCE
+endif
 	$(call if_changed,gzip)
 
       filechk_ikconfiggz = (echo "static const char kernel_config_data[] __used = MAGIC_START"; cat $< | scripts/basic/bin2c; echo "MAGIC_END;")
