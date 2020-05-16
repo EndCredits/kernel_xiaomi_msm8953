@@ -6,7 +6,10 @@ git clone --depth=1 -b master https://github.com/kdrag0n/proton-clang clang
 git clone https://github.com/MASTERGUY/AnyKernel3 -b tissot --depth=1 AnyKernel
 echo "Done"
 KERNEL_DIR=$(pwd)
-IMAGE="${KERNEL_DIR}/out/arch/arm64/boot/Image.gz-dtb"
+REPACK_DIR="${KERNEL_DIR}/AnyKernel"
+IMAGE="${KERNEL_DIR}/out/arch/arm64/boot/Image.gz"
+DTB_T="${KERNEL_DIR}/out/arch/arm64/boot/dts/qcom/msm8953-qrd-sku3-tissot-treble.dtb"
+DTB="${KERNEL_DIR}/out/arch/arm64/boot/dts/qcom/msm8953-qrd-sku3-tissot-nontreble.dtb"
 TANGGAL=$(date +"%Y%m%d-%H")
 BRANCH="$(git rev-parse --abbrev-ref HEAD)"
 export PATH="$(pwd)/clang/bin:$PATH"
@@ -23,17 +26,34 @@ function compile() {
                       CROSS_COMPILE=aarch64-linux-gnu- \
                       CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
 
+    cd $REPACK_DIR
+    mkdir kernel
+    mkdir treble
+    mkdir non-treble
+
     if ! [ -a "$IMAGE" ]; then
         exit 1
         echo "There are some issues"
     fi
-    cp out/arch/arm64/boot/Image.gz-dtb AnyKernel
+    cp $IMAGE $REPACK_DIR/kernel/
+
+    if ! [ -a "$DTB" ]; then
+        exit 1
+        echo "There are some issues"
+    fi
+    cp $DTB $REPACK_DIR/non-treble/
+
+    if ! [ -a "$DTB_T" ]; then
+        exit 1
+        echo "There are some issues"
+    fi
+    cp $DTB_T $REPACK_DIR/treble/
 }
 # Zipping
 function zipping() {
-    cd AnyKernel || exit 1
-    zip -r9 Perf-Kernel-${TANGGAL}.zip *
-    curl https://bashupload.com/Perf-Kernel-${TANGGAL}.zip --data-binary @Perf-Kernel-${TANGGAL}.zip
+    cd $REPACK_DIR || exit 1
+    zip -r9 Perf_Kernel-${TANGGAL}.zip *
+    curl https://bashupload.com/Perf_Kernel-${TANGGAL}.zip --data-binary @Perf_Kernel-${TANGGAL}.zip
 }
 compile
 zipping
