@@ -13,7 +13,7 @@ jobs:
            git clone https://github.com/akhilnarang/scripts && cd scripts && bash setup/android_build_env.sh && cd ..
            mkdir nbm69
            cd nbm69
-           wget https://raw.githubusercontent.com/MASTERGUY/kernel_xiaomi_msm8953/derp10/.circleci/build.sh
+           wget https://raw.githubusercontent.com/MASTERGUY/kernel_xiaomi_msm8953/rebase-perf+/.circleci/build.sh
            source build.sh
 workflows:
   version: 2.1

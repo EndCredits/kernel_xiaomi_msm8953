@@ -1,6 +1,6 @@
 #!/bin/bash
 echo "Cloning dependencies"
-git clone --depth=1 -b derp10 https://github.com/MASTERGUY/kernel_xiaomi_msm8953 kernel
+git clone --depth=1 -b rebase-perf+ https://github.com/MASTERGUY/kernel_xiaomi_msm8953 kernel
 cd kernel
 git clone --depth=1 -b master https://github.com/kdrag0n/proton-clang clang
 git clone https://github.com/MASTERGUY/AnyKernel3 -b tissot --depth=1 AnyKernel
