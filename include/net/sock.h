@@ -384,7 +384,27 @@ struct sock {
 	atomic_t		sk_wmem_alloc;
 	atomic_t		sk_omem_alloc;
 	int			sk_sndbuf;
+
+	/* ===== cache line for TX ===== */
+	atomic_t		sk_wmem_alloc;
+	unsigned long		sk_tsq_flags;
+	struct sk_buff		*sk_send_head;
 	struct sk_buff_head	sk_write_queue;
+	__s32			sk_peek_off;
+	int			sk_write_pending;
+	u32			sk_pacing_status; /* see enum sk_pacing */
+	long			sk_sndtimeo;
+	struct timer_list	sk_timer;
+	__u32			sk_priority;
+	__u32			sk_mark;
+	u32			sk_pacing_rate; /* bytes per second */
+	u32			sk_max_pacing_rate;
+	struct page_frag	sk_frag;
+	netdev_features_t	sk_route_caps;
+	netdev_features_t	sk_route_nocaps;
+	int			sk_gso_type;
+	unsigned int		sk_gso_max_size;
+	__u32			sk_txhash;
 
 	/*
 	 * Because of non atomicity rules, all
@@ -402,12 +422,7 @@ struct sock {
 
 	int			sk_wmem_queued;
 	gfp_t			sk_allocation;
-	u32			sk_pacing_rate; /* bytes per second */
-	u32			sk_max_pacing_rate;
-	netdev_features_t	sk_route_caps;
-	netdev_features_t	sk_route_nocaps;
-	int			sk_gso_type;
-	unsigned int		sk_gso_max_size;
+	netdev_features_t	sk_route_forced_caps;
 	u16			sk_gso_max_segs;
 	int			sk_rcvlowat;
 	unsigned long	        sk_lingertime;
