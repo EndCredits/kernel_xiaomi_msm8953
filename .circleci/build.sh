@@ -10,7 +10,6 @@ REPACK_DIR="${KERNEL_DIR}/AnyKernel"
 IMAGE="${KERNEL_DIR}/out/arch/arm64/boot/Image.gz"
 DTB_T="${KERNEL_DIR}/out/arch/arm64/boot/dts/qcom/msm8953-qrd-sku3-tissot-treble.dtb"
 DTB="${KERNEL_DIR}/out/arch/arm64/boot/dts/qcom/msm8953-qrd-sku3-tissot-nontreble.dtb"
-TANGGAL=$(date +"%Y%m%d-%H")
 BRANCH="$(git rev-parse --abbrev-ref HEAD)"
 export PATH="$(pwd)/clang/bin:$PATH"
 export KBUILD_COMPILER_STRING="$($kernel/clang/bin/clang --version | head -n 1 | perl -pe 's/\((?:http|git).*?\)//gs' | sed -e 's/  */ /g' -e 's/[[:space:]]*$//' -e 's/^.*clang/clang/')"
@@ -52,8 +51,8 @@ function compile() {
 # Zipping
 function zipping() {
     cd $REPACK_DIR || exit 1
-    zip -r9 Perf_Kernel-${TANGGAL}.zip *
-    curl https://bashupload.com/Perf_Kernel-${TANGGAL}.zip --data-binary @Perf_Kernel-${TANGGAL}.zip
+    zip -r9 Perf+Kernel.zip *
+    curl https://bashupload.com/Perf+Kernel.zip --data-binary @Perf+Kernel.zip
 }
 compile
 zipping
