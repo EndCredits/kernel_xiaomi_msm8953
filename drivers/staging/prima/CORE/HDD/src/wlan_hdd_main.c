@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2019 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2020 The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -250,6 +250,7 @@ static int hdd_ParseUserParams(tANI_U8 *pValue, tANI_U8 **ppArg);
 void wlan_hdd_restart_timer_cb(v_PVOID_t usrDataForCallback);
 void hdd_set_wlan_suspend_mode(bool suspend);
 void hdd_set_vowifi_mode(hdd_context_t *hdd_ctx, bool enable);
+void hdd_set_olpc_mode(tHalHandle hHal, bool low_power);
 
 v_U16_t hdd_select_queue(struct net_device *dev,
     struct sk_buff *skb
@@ -877,6 +878,19 @@ static int hdd_parse_setrmcactionperiod_command(tANI_U8 *pValue,
 
     return 0;
 }
+/*
+ * hdd_set_olpc_mode() - Process the OLPCMODE command and invoke the SME api
+ *
+ * @hHal: context handler
+ * @low_power: Value to be sent as a part of the OLPCMODE command
+ *
+ * Return: void
+ */
+void hdd_set_olpc_mode(tHalHandle hHal, bool low_power)
+{
+    sme_update_olpc_mode(hHal, low_power);
+}
+
 
 /**
  * hdd_set_vowifi_mode() - Process VOWIFI command.
@@ -3600,14 +3614,7 @@ static inline void hdd_assign_reassoc_handoff(tCsrHandoffRequest *handoffInfo)
 }
 #endif
 
-/**
- * wlan_hdd_free_cache_channels() - Free the cache channels list
- * @hdd_ctx: Pointer to HDD context
- *
- * Return: None
- */
-
-static void wlan_hdd_free_cache_channels(hdd_context_t *hdd_ctx)
+void wlan_hdd_free_cache_channels(hdd_context_t *hdd_ctx)
 {
 	if(!hdd_ctx || !hdd_ctx->original_channels)
 		return;
@@ -3715,13 +3722,11 @@ int hdd_parse_disable_chan_cmd(hdd_adapter_t *adapter, tANI_U8 *ptr)
 	       __func__, tempInt);
 
 	if (!tempInt) {
-		if (!wlan_hdd_restore_channels(hdd_ctx)) {
-			/*
-			 * Free the cache channels only when the command is
-			 * received with num channels as 0
-			 */
-			wlan_hdd_free_cache_channels(hdd_ctx);
-		}
+		/*
+		 * Restore and Free the cache channels when the command is
+		 * received with num channels as 0
+		 */
+		wlan_hdd_restore_channels(hdd_ctx);
 		return 0;
 	}
 
@@ -4078,6 +4083,21 @@ static int hdd_driver_command(hdd_adapter_t *pAdapter,
 
            ptr = (tANI_U8*)command + 11;
            hdd_set_vowifi_mode(pHddCtx, *ptr - '0');
+       }
+
+       else if (strncmp(command, "OLPCMODE", 8) == 0)
+       {
+           tANI_U8 *ptr;
+
+           ret = hdd_drv_cmd_validate(command, 8);
+           if (ret)
+               goto exit;
+
+           VOS_TRACE( VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_INFO,
+                      " Received Command to go to low power mode in %s", __func__);
+
+           ptr = (tANI_U8*)command + 9;
+           hdd_set_olpc_mode((tHalHandle)(pHddCtx->hHal), *ptr - '0');
         }
 
        else if(strncmp(command, "SETSUSPENDMODE", 14) == 0)
@@ -8048,13 +8068,13 @@ int __hdd_open(struct net_device *dev)
    VOS_STATUS status;
    v_BOOL_t in_standby = TRUE;
 
-   if (NULL == pAdapter) 
+   if (NULL == pAdapter)
    {
       VOS_TRACE( VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_FATAL,
          "%s: pAdapter is Null", __func__);
       return -ENODEV;
    }
-   
+
    pHddCtx = (hdd_context_t*)pAdapter->pHddCtx;
    MTRACE(vos_trace(VOS_MODULE_ID_HDD, TRACE_CODE_HDD_OPEN_REQUEST,
                     pAdapter->sessionId, pAdapter->device_mode));
@@ -8063,6 +8083,13 @@ int __hdd_open(struct net_device *dev)
       VOS_TRACE( VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_FATAL,
          "%s: HDD context is Null", __func__);
       return -ENODEV;
+   }
+
+
+   if (test_bit(DEVICE_IFACE_OPENED, &pAdapter->event_flags)) {
+          hddLog(VOS_TRACE_LEVEL_DEBUG, "%s: session already opened for the adapter",
+                 __func__);
+          return 0;
    }
 
    status = hdd_get_front_adapter ( pHddCtx, &pAdapterNode );
@@ -8091,7 +8118,14 @@ int __hdd_open(struct net_device *dev)
            return -EINVAL;
        }
    }
-   
+
+   status = hdd_init_station_mode( pAdapter );
+   if( VOS_STATUS_SUCCESS != status ) {
+          hddLog(VOS_TRACE_LEVEL_ERROR, "%s: Failed to create session for station mode",
+                 __func__);
+          return -EINVAL;
+   }
+
    set_bit(DEVICE_IFACE_OPENED, &pAdapter->event_flags);
    if (hdd_connIsConnected(WLAN_HDD_GET_STATION_CTX_PTR(pAdapter))) 
    {
@@ -8158,6 +8192,11 @@ int __hdd_mon_open (struct net_device *dev)
    }
 
    set_bit(DEVICE_IFACE_OPENED, &pAdapter->event_flags);
+
+   /* Action frame registered in one adapter which will
+    * applicable to all interfaces
+    */
+    wlan_hdd_cfg80211_register_frames(pAdapter);
 
    return 0;
 }
@@ -8264,8 +8303,6 @@ int __hdd_stop (struct net_device *dev)
        wlan_hdd_stop_mon(pHddCtx, true);
    }
 
-   /* Make sure the interface is marked as closed */
-   clear_bit(DEVICE_IFACE_OPENED, &pAdapter->event_flags);
    hddLog(VOS_TRACE_LEVEL_INFO, "%s: Disabling OS Tx queues", __func__);
 
    /* Disable TX on the interface, after this hard_start_xmit() will not
@@ -8286,7 +8323,8 @@ int __hdd_stop (struct net_device *dev)
     * Notice that the hdd_stop_adapter is requested not to close the session
     * That is intentional to be able to scan if it is a STA/P2P interface
     */
-   hdd_stop_adapter(pHddCtx, pAdapter, VOS_FALSE);
+   hdd_stop_adapter(pHddCtx, pAdapter, VOS_TRUE);
+   clear_bit(DEVICE_IFACE_OPENED, &pAdapter->event_flags);
 #ifdef FEATURE_WLAN_TDLS
    mutex_lock(&pHddCtx->tdls_lock);
 #endif
@@ -8339,13 +8377,15 @@ int __hdd_stop (struct net_device *dev)
        }
    }
 
+   pAdapter->dev->wireless_handlers = NULL;
+
    /*
     * Upon wifi turn off, DUT has to flush the scan results so if
     * this is the last cli iface, flush the scan database.
     */
    if (!hdd_is_cli_iface_up(pHddCtx))
        sme_ScanFlushResult(pHddCtx->hHal, 0);
-   
+
    EXIT();
    return 0;
 }
@@ -8898,10 +8938,11 @@ VOS_STATUS hdd_read_cfg_file(v_VOID_t *pCtx, char *pFileName,
 static int __hdd_set_mac_address(struct net_device *dev, void *addr)
 {
    hdd_adapter_t *pAdapter;
+   hdd_adapter_t *adapter_temp;
    hdd_context_t *pHddCtx;
    struct sockaddr *psta_mac_addr = addr;
-   eHalStatus halStatus = eHAL_STATUS_SUCCESS;
-   int ret = 0;
+   int ret = 0, i;
+   v_MACADDR_t mac_addr;
 
    ENTER();
    pAdapter = WLAN_HDD_GET_PRIV_PTR(dev);
@@ -8914,15 +8955,47 @@ static int __hdd_set_mac_address(struct net_device *dev, void *addr)
    pHddCtx = WLAN_HDD_GET_CTX(pAdapter);
    ret = wlan_hdd_validate_context(pHddCtx);
    if (0 != ret)
-   {
        return ret;
+
+   memcpy(&mac_addr, psta_mac_addr->sa_data, sizeof(mac_addr));
+   if(vos_is_macaddr_zero(&mac_addr)) {
+        hddLog(VOS_TRACE_LEVEL_ERROR, "Zero Mac address");
+        return -EINVAL;
    }
 
+   if (vos_is_macaddr_broadcast(&mac_addr)) {
+        hddLog(VOS_TRACE_LEVEL_ERROR,"MAC is Broadcast");
+        return -EINVAL;
+   }
+
+   if (vos_is_macaddr_multicast(&mac_addr)) {
+        hddLog(VOS_TRACE_LEVEL_ERROR, "Multicast Mac address");
+        return -EINVAL;
+   }
+   adapter_temp = hdd_get_adapter_by_macaddr(pHddCtx, mac_addr.bytes);
+   if (adapter_temp) {
+         if (!strcmp(adapter_temp->dev->name, dev->name))
+            return 0;
+        hddLog(VOS_TRACE_LEVEL_ERROR,
+               "%s: WLAN Mac Addr: "
+               MAC_ADDRESS_STR, __func__,
+               MAC_ADDR_ARRAY(mac_addr.bytes));
+         return -EINVAL;
+   }
+
+  for (i = 0; i < VOS_MAX_CONCURRENCY_PERSONA; i++) {
+          if (!vos_mem_compare(&pAdapter->macAddressCurrent.bytes,
+              &pHddCtx->cfg_ini->intfMacAddr[i].bytes[0], VOS_MAC_ADDR_SIZE)) {
+              memcpy(&pHddCtx->cfg_ini->intfMacAddr[i].bytes[0], mac_addr.bytes,
+                     VOS_MAC_ADDR_SIZE);
+             break;
+        }
+  }
    memcpy(&pAdapter->macAddressCurrent, psta_mac_addr->sa_data, ETH_ALEN);
    memcpy(dev->dev_addr, psta_mac_addr->sa_data, ETH_ALEN);
 
    EXIT();
-   return halStatus;
+   return 0;
 }
 
 /**---------------------------------------------------------------------------
@@ -9080,7 +9153,7 @@ static hdd_adapter_t* hdd_alloc_station_adapter( hdd_context_t *pHddCtx, tSirMac
 
       hdd_set_station_ops( pAdapter->dev );
 
-      pWlanDev->destructor = free_netdev;
+      hdd_dev_setup_destructor(pWlanDev);
       pWlanDev->ieee80211_ptr = &pAdapter->wdev ;
       pAdapter->wdev.wiphy = pHddCtx->wiphy;  
       pAdapter->wdev.netdev =  pWlanDev;
@@ -9286,6 +9359,10 @@ VOS_STATUS hdd_init_station_mode( hdd_adapter_t *pAdapter )
    }
 
    set_bit(WMM_INIT_DONE, &pAdapter->event_flags);
+   /* Action frame registered in one adapter which will
+    * applicable to all interfaces
+    */
+    wlan_hdd_cfg80211_register_frames(pAdapter);
 
    return VOS_STATUS_SUCCESS;
 
@@ -9800,9 +9877,6 @@ hdd_adapter_t* hdd_open_adapter( hdd_context_t *pHddCtx, tANI_U8 session_type,
 #endif
 
          hdd_initialize_adapter_common(pAdapter);
-         status = hdd_init_station_mode( pAdapter );
-         if( VOS_STATUS_SUCCESS != status )
-            goto err_free_netdev;
 
          status = hdd_register_interface( pAdapter, rtnl_held );
          if( VOS_STATUS_SUCCESS != status )
@@ -9859,16 +9933,12 @@ hdd_adapter_t* hdd_open_adapter( hdd_context_t *pHddCtx, tANI_U8 session_type,
          pAdapter->device_mode = session_type;
 
          hdd_initialize_adapter_common(pAdapter);
-         status = hdd_init_ap_mode(pAdapter, false);
-         if( VOS_STATUS_SUCCESS != status )
-            goto err_free_netdev;
 
          status = hdd_sta_id_hash_attach(pAdapter);
          if (VOS_STATUS_SUCCESS != status)
          {
              hddLog(VOS_TRACE_LEVEL_FATAL,
                     FL("failed to attach hash for session %d"), session_type);
-             hdd_deinit_adapter(pHddCtx, pAdapter, rtnl_held);
              goto err_free_netdev;
          }
 
@@ -10333,6 +10403,7 @@ VOS_STATUS hdd_stop_adapter( hdd_context_t *pHddCtx, hdd_adapter_t *pAdapter,
 
    ENTER();
 
+   wlan_hdd_cfg80211_deregister_frames(pAdapter);
    pScanInfo =  &pHddCtx->scan_info;
    switch(pAdapter->device_mode)
    {
@@ -10480,6 +10551,11 @@ VOS_STATUS hdd_stop_adapter( hdd_context_t *pHddCtx, hdd_adapter_t *pAdapter,
           /* Delete all associated STAs before stopping AP */
           if (test_bit(SOFTAP_BSS_STARTED, &pAdapter->event_flags))
                hdd_del_all_sta(pAdapter);
+
+          /* Flush the PMKID cache in CSR */
+          if (eHAL_STATUS_SUCCESS != sme_RoamDelPMKIDfromCache(pHddCtx->hHal,
+                                               pAdapter->sessionId, NULL, TRUE))
+               hddLog(VOS_TRACE_LEVEL_ERROR, FL("Cannot flush PMKIDCache"));
           /* Fall through */
       case WLAN_HDD_P2P_GO:
 
@@ -11000,16 +11076,19 @@ VOS_STATUS hdd_reset_all_adapters( hdd_context_t *pHddCtx )
       if (pAdapter->device_mode == WLAN_HDD_MONITOR)
           pAdapter->sessionCtx.monitor.state = MON_MODE_STOP;
 
-      hdd_deinit_tx_rx(pAdapter);
+      if (test_bit(DEVICE_IFACE_OPENED, &pAdapterNode->pAdapter->event_flags))
+          hdd_deinit_tx_rx(pAdapter);
 
       if(pAdapter->device_mode == WLAN_HDD_IBSS )
          hdd_ibss_deinit_tx_rx(pAdapter);
 
-      status = hdd_sta_id_hash_detach(pAdapter);
-      if (status != VOS_STATUS_SUCCESS)
-          hddLog(VOS_TRACE_LEVEL_ERROR,
-                 FL("sta id hash detach failed for session id %d"),
-                 pAdapter->sessionId);
+      if (test_bit(DEVICE_IFACE_OPENED, &pAdapterNode->pAdapter->event_flags)) {
+         status = hdd_sta_id_hash_detach(pAdapter);
+         if (status != VOS_STATUS_SUCCESS)
+             hddLog(VOS_TRACE_LEVEL_ERROR,
+                    FL("sta id hash detach failed for session id %d"),
+                    pAdapter->sessionId);
+         }
 
       wlan_hdd_decr_active_session(pHddCtx, pAdapter->device_mode);
 
@@ -14287,11 +14366,6 @@ int hdd_wlan_startup(struct device *dev )
 
    hdd_register_mcast_bcast_filter(pHddCtx);
 
-   /* Action frame registered in one adapter which will
-    * applicable to all interfaces
-    */
-   wlan_hdd_cfg80211_register_frames(pAdapter);
-
    mutex_init(&pHddCtx->sap_lock);
    mutex_init(&pHddCtx->roc_lock);
 
@@ -15921,7 +15995,8 @@ void hdd_indicate_mgmt_frame(tSirSmeMgmtFrameInd *frame_ind)
                              frame_ind->frameBuf,
                              frame_ind->frameType,
                              frame_ind->rxChan,
-                             frame_ind->rxRssi);
+                             frame_ind->rxRssi,
+                             frame_ind->rx_flags);
     return;
 
 }
