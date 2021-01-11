@@ -72,7 +72,7 @@ walt_dec_cfs_rq_stats(struct cfs_rq *cfs_rq, struct task_struct *p) {}
 
 /*
  * Targeted preemption latency for CPU-bound tasks:
- * (default: 6ms * (1 + ilog(ncpus)), units: nanoseconds)
+ * (default: 5ms * (1 + ilog(ncpus)), units: nanoseconds)
  *
  * NOTE: this latency value is not the same as the concept of
  * 'timeslice length' - timeslices in CFS are of variable length
@@ -82,8 +82,8 @@ walt_dec_cfs_rq_stats(struct cfs_rq *cfs_rq, struct task_struct *p) {}
  * (to see the precise effective timeslice length of your workload,
  *  run vmstat and monitor the context-switches (cs) field)
  */
-unsigned int sysctl_sched_latency = 6000000ULL;
-unsigned int normalized_sysctl_sched_latency = 6000000ULL;
+unsigned int sysctl_sched_latency = 5000000ULL;
+unsigned int normalized_sysctl_sched_latency = 5000000ULL;
 
 unsigned int sysctl_sched_is_big_little = 1;
 unsigned int sysctl_sched_sync_hint_enable = 1;
@@ -6259,7 +6259,7 @@ static int wake_affine(struct sched_domain *sd, struct task_struct *p,
 		prev_eff_load *= load + effective_load(tg, prev_cpu, 0, weight);
 	}
 
-	balanced = this_eff_load <= prev_eff_load;
+	balanced = this_eff_load <= prev_eff_load ? this_cpu : nr_cpumask_bits;
 
 	schedstat_inc(p->se.statistics.nr_wakeups_affine_attempts);
 
@@ -6830,7 +6830,7 @@ static int select_idle_sibling(struct task_struct *p, int prev, int target)
 {
 	struct sched_domain *sd;
 	struct sched_group *sg;
-	int i = task_cpu(p);
+	int i = task_cpu(p),  recent_used_cpu;
 	int best_idle_cpu = -1;
 	int best_idle_cstate = INT_MAX;
 	unsigned long best_idle_capacity = ULONG_MAX;
@@ -6851,7 +6851,23 @@ static int select_idle_sibling(struct task_struct *p, int prev, int target)
 		if (i != target && cpus_share_cache(i, target) && idle_cpu(i)) {
 			schedstat_inc(p->se.statistics.nr_wakeups_sis_cache_affine);
 			schedstat_inc(this_rq()->eas_stats.sis_cache_affine);
-			return i;
+			return idle_cpu(prev) ? prev : i;
+		}
+
+		/* Check a recently used CPU as a potential idle candidate */
+		recent_used_cpu = p->recent_used_cpu;
+		if (recent_used_cpu != prev &&
+	    		recent_used_cpu != target &&
+	    		cpus_share_cache(recent_used_cpu, target) &&
+	    		idle_cpu(recent_used_cpu) &&
+	    		cpumask_test_cpu(p->recent_used_cpu, &p->cpus_allowed)) {
+				
+			 /*
+		 	  * Replace recent_used_cpu with prev as it is a potential
+		 	  * candidate for the next wake.
+		  	  */
+			 p->recent_used_cpu = prev;
+			return recent_used_cpu;
 		}
 
 		sd = rcu_dereference(per_cpu(sd_llc, target));
@@ -7744,8 +7760,18 @@ select_task_rq_fair(struct task_struct *p, int prev_cpu, int sd_flag, int wake_f
 	int sync = wake_flags & WF_SYNC;
 
 	if (sd_flag & SD_BALANCE_WAKE) {
+		int _wake_cap = wake_cap(p, cpu, prev_cpu);
+
+		if (cpumask_test_cpu(cpu, tsk_cpus_allowed(p))) {
+			bool about_to_idle = (cpu_rq(cpu)->nr_running < 2);
+
+			if (sysctl_sched_sync_hint_enable && sync &&
+			    !_wake_cap && about_to_idle)
+				return cpu;
+		}
+
 		record_wakee(p);
-		want_affine = (!wake_wide(p) && !wake_cap(p, cpu, prev_cpu) &&
+		want_affine = (!wake_wide(p) && !_wake_cap &&
 			cpumask_test_cpu(cpu, tsk_cpus_allowed(p)));
 	}
 
@@ -7779,8 +7805,7 @@ select_task_rq_fair(struct task_struct *p, int prev_cpu, int sd_flag, int wake_f
 
 	if (affine_sd) {
 		sd = NULL; /* Prefer wake_affine over balance flags */
-		if (cpu != prev_cpu && wake_affine(affine_sd, p, prev_cpu, sync))
-			new_cpu = cpu;
+		new_cpu = wake_affine(affine_sd, p, prev_cpu, sync);
 	}
 
 	if (sd && !(sd_flag & SD_BALANCE_FORK)) {
@@ -7795,6 +7820,8 @@ select_task_rq_fair(struct task_struct *p, int prev_cpu, int sd_flag, int wake_f
 	if (!sd) {
 		if (sd_flag & SD_BALANCE_WAKE) /* XXX always ? */
 			new_cpu = select_idle_sibling(p, prev_cpu, new_cpu);
+			if (want_affine)
+				current->recent_used_cpu = cpu;
 
 	} else {
 		new_cpu = find_idlest_cpu(sd, p, cpu, prev_cpu, sd_flag);
