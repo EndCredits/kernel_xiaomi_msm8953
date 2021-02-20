@@ -54,9 +54,12 @@ config ANDROID_BINDER_IPC_SELFTEST
 	  exhaustively with combinations of various buffer sizes and
 	  alignments.
 
+endif # if ANDROID
+
 config ANDROID_SIMPLE_LMK
 	bool "Simple Android Low Memory Killer"
 	depends on !ANDROID_LOW_MEMORY_KILLER && !MEMCG && !PSI
+	default y
 	---help---
 	  This is a complete low memory killer solution for Android that is
 	  small and simple. Processes are killed according to the priorities
@@ -87,6 +90,5 @@ config ANDROID_SIMPLE_LMK_TIMEOUT_MSEC
 
 endif
 
-endif # if ANDROID
 
 endmenu
