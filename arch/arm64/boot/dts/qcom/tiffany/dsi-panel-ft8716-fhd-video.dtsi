@@ -155,6 +155,7 @@
 				23 1E 07 08 05 03 04 a0
 				23 18 07 08 05 03 04 a0];
 
+		qcom,panel-supply-entries = <&dsi_panel_pwr_supply>;
 		qcom,mdss-dsi-on-command-state = "dsi_lp_mode";
 		qcom,mdss-dsi-off-command-state = "dsi_lp_mode";
 		qcom,mdss-dsi-cold_gamma-command-state = "dsi_lp_mode";
@@ -190,5 +191,8 @@
 		qcom,mdss-dsi-panel-max-error-count = <3>;
 		qcom,mdss-pan-physical-width-dimension = <69>;
 		qcom,mdss-pan-physical-height-dimension = <122>;
+		qcom,ulps-enabled;
+		qcom,suspend-ulps-enabled;
+		qcom,panel-allow-phy-poweroff;
 	};
 };
