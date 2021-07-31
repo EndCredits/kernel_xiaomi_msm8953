@@ -126,7 +126,6 @@ $(obj)/configs.o: $(obj)/config_data.h
 # Info from config_data can be extracted from /proc/config*
 targets += config_data.gz
 $(obj)/config_data.gz: $(KCONFIG_CONFIG) FORCE
-endif
 ifeq ($(CONFIG_MACH_XIAOMI_TIFFANY),y)
 $(obj)/config_data.gz: arch/arm64/configs/tiffany_defconfig FORCE
 else
