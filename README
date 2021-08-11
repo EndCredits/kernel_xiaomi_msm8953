@@ -1,3 +1,5 @@
+Note: If you want to use this kernel source and compile by yourself, please revert this commit: https://github.com/EndCredits/kernel_xiaomi_msm8953/commit/185286706f8a4edabf504d580dba168346a077c7
+-------
         Linux kernel release 4.x <http://kernel.org/>
 
 These are the release notes for Linux version 4.  Read them carefully,
