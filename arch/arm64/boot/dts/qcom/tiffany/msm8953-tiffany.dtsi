@@ -16,6 +16,27 @@
 #include <dt-bindings/gpio/gpio.h>
 
 / {
+	firmware: firmware {
+		android {
+			fstab {
+				vendor {
+					dev = "/dev/block/platform/soc/7824900.sdhci/by-name/cust";
+					fsmgr_flags = "wait";
+					status = "ok";
+				};
+				system {
+					compatible = "android,system";
+					dev = "/dev/block/platform/soc/7824900.sdhci/by-name/system";
+					type = "ext4";
+					mnt_flags = "ro,barrier=1,discard";
+					fsmgr_flags = "wait";
+					status = "ok";
+				};
+
+			};
+		};
+	};
+
 	reserved-memory {
 		other_ext_mem: other_ext_region@0 {
 			reg = <0x0 0x84A00000 0x0 0x1E00000>;
